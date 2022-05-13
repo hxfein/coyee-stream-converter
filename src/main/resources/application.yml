@@ -20,7 +20,7 @@ server:
   tomcat:
     uri-encoding: UTF-8
 streamserver:
-  desKey: W1ses0ft
+  desKey: hxfein@2
   hlsStoreDir: /home/hls
   hlsTime: 5
   hlsWrap: 10
