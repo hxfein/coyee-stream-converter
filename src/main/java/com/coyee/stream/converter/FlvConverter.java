@@ -1,0 +1,255 @@
+package com.coyee.stream.converter;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+
+import javax.servlet.AsyncContext;
+
+import org.bytedeco.ffmpeg.avcodec.AVPacket;
+import org.bytedeco.ffmpeg.global.avcodec;
+import org.bytedeco.javacv.*;
+
+import com.alibaba.fastjson.util.IOUtils;
+
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * @author hxfein
+ * @className: FlvConverter
+ * @description: 将流转为rtmp格式
+ * @date 2022/5/12 14:32
+ * @version：1.0
+ */
+@Slf4j
+public class FlvConverter extends Thread implements Converter {
+    public volatile boolean running = true;
+    /**
+     * 读流器
+     */
+    private FFmpegFrameGrabber grabber;
+    /**
+     * 转码器
+     */
+    private FFmpegFrameRecorder recorder;
+    /**
+     * 转FLV格式的头信息<br/>
+     * 如果有第二个客户端播放首先要返回头信息
+     */
+    private byte[] headers;
+    /**
+     * 保存转换好的流
+     */
+    private ByteArrayOutputStream stream;
+    /**
+     * 流地址，h264,aac
+     */
+    private String url;
+    /**
+     * 流输出
+     */
+    private List<AsyncContext> outEntitys;
+
+
+    public FlvConverter(String url, List<AsyncContext> outEntitys) {
+        this.url = url;
+        this.outEntitys = outEntitys;
+    }
+
+    @Override
+    public void run() {
+        try {
+            log.info("开始转换FLV任务:{}。", url);
+            grabber = new FFmpegFrameGrabber(url);
+            if ("rtsp".equals(url.substring(0, 4))) {
+                grabber.setOption("rtsp_transport", "tcp");
+                grabber.setOption("stimeout", "5000000");
+            }
+            grabber.start();
+            if (avcodec.AV_CODEC_ID_H264 == grabber.getVideoCodec()
+                    && (grabber.getAudioChannels() == 0 || avcodec.AV_CODEC_ID_AAC == grabber.getAudioCodec())) {
+                simpleTransFlv();
+            }else{
+                transFlv();
+            }
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+        } finally {
+            closeConverter();
+            completeResponse();
+            log.info("FLV转换任务退出:{}", url);
+        }
+    }
+
+    private void transFlv() throws FrameRecorder.Exception, FrameGrabber.Exception, InterruptedException {
+        log.info("FLV(complex)转换任务启动,可以立即播放：{}。", url);
+        grabber.setFrameRate(25);
+        if (grabber.getImageWidth() > 1920) {
+            grabber.setImageWidth(1920);
+        }
+        if (grabber.getImageHeight() > 1080) {
+            grabber.setImageHeight(1080);
+        }
+        stream = new ByteArrayOutputStream();
+        recorder = new FFmpegFrameRecorder(stream, grabber.getImageWidth(), grabber.getImageHeight(),
+                grabber.getAudioChannels());
+        recorder.setInterleaved(true);
+        recorder.setVideoOption("preset", "ultrafast");
+        recorder.setVideoOption("tune", "zerolatency");
+        recorder.setVideoOption("crf", "25");
+        recorder.setGopSize(50);
+        recorder.setFrameRate(25);
+        recorder.setSampleRate(grabber.getSampleRate());
+        if (grabber.getAudioChannels() > 0) {
+            recorder.setAudioChannels(grabber.getAudioChannels());
+            recorder.setAudioBitrate(grabber.getAudioBitrate());
+            recorder.setAudioCodec(avcodec.AV_CODEC_ID_AAC);
+        }
+        recorder.setFormat("flv");
+        recorder.setVideoBitrate(grabber.getVideoBitrate());
+        recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
+        recorder.start();
+        if (headers == null) {
+            headers = stream.toByteArray();
+            stream.reset();
+            writeResponse(headers);
+        }
+        int nullNumber = 0;
+        while (running) {
+            // 抓取一帧
+            Frame f = grabber.grab();
+            if (f != null) {
+                try {
+                    // 转码
+                    recorder.record(f);
+                } catch (Exception e) {
+                }
+                if (stream.size() > 0) {
+                    byte[] b = stream.toByteArray();
+                    stream.reset();
+                    writeResponse(b);
+                    if (outEntitys.isEmpty()) {
+                        log.info("没有输出退出");
+                        break;
+                    }
+                }
+            } else {
+                nullNumber++;
+                if (nullNumber > 200) {
+                    break;
+                }
+            }
+            Thread.sleep(5);
+        }
+    }
+
+    private void simpleTransFlv() throws FrameRecorder.Exception, FrameGrabber.Exception, InterruptedException {
+        // 来源视频H264格式,音频AAC格式
+        // 无须转码，更低的资源消耗，更低的延迟
+        log.info("FLV(simple)转换任务启动,可以立即播放：{}。", url);
+        stream = new ByteArrayOutputStream();
+        recorder = new FFmpegFrameRecorder(stream, grabber.getImageWidth(), grabber.getImageHeight(),
+                grabber.getAudioChannels());
+        recorder.setInterleaved(true);
+        recorder.setVideoOption("preset", "ultrafast");
+        recorder.setVideoOption("tune", "zerolatency");
+        recorder.setVideoOption("crf", "25");
+        recorder.setFrameRate(grabber.getFrameRate());
+        recorder.setSampleRate(grabber.getSampleRate());
+        if (grabber.getAudioChannels() > 0) {
+            recorder.setAudioChannels(grabber.getAudioChannels());
+            recorder.setAudioBitrate(grabber.getAudioBitrate());
+            recorder.setAudioCodec(grabber.getAudioCodec());
+        }
+        recorder.setFormat("flv");
+        recorder.setVideoBitrate(grabber.getVideoBitrate());
+        recorder.setVideoCodec(grabber.getVideoCodec());
+        recorder.start(grabber.getFormatContext());
+        if (headers == null) {
+            headers = stream.toByteArray();
+            stream.reset();
+            writeResponse(headers);
+        }
+        int nullNumber = 0;
+        while (running) {
+            AVPacket k = grabber.grabPacket();
+            if (k != null) {
+                try {
+                    recorder.recordPacket(k);
+                } catch (Exception e) {
+                }
+                if (stream.size() > 0) {
+                    byte[] b = stream.toByteArray();
+                    stream.reset();
+                    writeResponse(b);
+                    if (outEntitys.isEmpty()) {
+                        log.info("没有输出退出");
+                        break;
+                    }
+                }
+                avcodec.av_packet_unref(k);
+            } else {
+                nullNumber++;
+                if (nullNumber > 200) {
+                    break;
+                }
+            }
+            Thread.sleep(5);
+        }
+    }
+
+    /**
+     * 输出FLV视频流
+     *
+     * @param b
+     */
+    public void writeResponse(byte[] b) {
+        Iterator<AsyncContext> it = outEntitys.iterator();
+        while (it.hasNext()) {
+            AsyncContext o = it.next();
+            try {
+                o.getResponse().getOutputStream().write(b);
+            } catch (Exception e) {
+                log.info("移除一个输出");
+                it.remove();
+            }
+        }
+    }
+
+    /**
+     * 退出转换
+     */
+    public void closeConverter() {
+        IOUtils.close(grabber);
+        IOUtils.close(recorder);
+        IOUtils.close(stream);
+    }
+
+    /**
+     * 关闭异步响应
+     */
+    public void completeResponse() {
+        Iterator<AsyncContext> it = outEntitys.iterator();
+        while (it.hasNext()) {
+            AsyncContext o = it.next();
+            o.complete();
+        }
+    }
+
+    @Override
+    public void addOutputStreamEntity(String key, AsyncContext entity) throws IOException {
+        if (headers == null) {
+            outEntitys.add(entity);
+        } else {
+            entity.getResponse().getOutputStream().write(headers);
+            entity.getResponse().getOutputStream().flush();
+            outEntitys.add(entity);
+        }
+    }
+
+    @Override
+    public void softClose() {
+        this.running =false;
+    }
+}

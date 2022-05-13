@@ -1,0 +1,27 @@
+spring:
+  profiles:
+    active: dev
+  mvc:
+    throw-exception-if-no-handler-found: true
+    static-path-pattern: /**
+  resources:
+    add-mappings: true
+  application:
+    name: coyee-stream-converter
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  servlet:
+    multipart:
+      maxFileSize: 50Mb
+      maxRequestSize: 50Mb
+server:
+  port: 8081
+  tomcat:
+    uri-encoding: UTF-8
+streamserver:
+  desKey: W1ses0ft
+  hlsStoreDir: /home/hls
+  hlsTime: 5
+  hlsWrap: 10
+  hlsListSize: 0

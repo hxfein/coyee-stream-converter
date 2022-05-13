@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+	<meta charset="utf-8">
+	<title>hls测试</title>
+	<script src="http://libs.baidu.com/jquery/2.0.0/jquery.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+<div>
+	<video id="video" controls></video>
+</div>
+<div>
+	<h3>1.地址编码</h3>
+	<p>
+		<label>源地址:</label>
+		<input type="text" size="120" value="rtsp://wowzaec2demo.streamlock.net/vod/mp4" id="sourceUrl"/>
+		<input type="button" onclick="createKey()" value="编码"/>
+	</p>
+	<p><label>编码:</label><label id="keyText"></label></p>
+	<p><label>打开流地址:</label><label id="openHlsUrlText"></label></p>
+</div>
+<div>
+	<h3>2.打开流转换</h3>
+	<p>
+		<input type="text" size="120" value="" id="openHlsUrl"/>
+		<input type="button" onclick="openHlsConvert()" value="打开流转换"/>
+	</p>
+	<p><label>播放地址:</label><label id="playUrlText"></label></p>
+</div>
+<div>
+	<h3>3.播放流</h3>
+	<input type="text" size="120" value="" id="hlsUrl"/>
+	<input type="button" onclick="playHls()" value="播放"/>
+</div>
+
+<div>
+	<h3>4.保持会话</h3>
+	<p>
+		<input type="text" size="120" value="" id="key"/>
+		<input type="button" onclick="keepActive()" value="保持"/>
+	</p>
+	<p id="keepMsg"></p>
+</div>
+<script type="text/javascript">
+	var baseUrl="http://localhost:8081";
+	function createKey(){
+		var sourceUrl=$("#sourceUrl").val()||'';
+		if(sourceUrl==''){
+			alert("源地址不能为空!");
+			return;
+		}
+		var url="/url/encode";
+		$.post(url,{url:sourceUrl},function(json){
+			if(json.status==200){
+				var key=json.data;
+				$("#keyText").text(key);
+				$("#key").val(key);
+				var openHlsUrl=baseUrl+"/live/openHls/"+key;
+				$("#openHlsUrlText").text(openHlsUrl);
+				$("#openHlsUrl").val(openHlsUrl);
+			}else{
+				alert("错误:"+json.message);
+			}
+		});
+	}
+	function openHlsConvert(){
+		var openHlsUrl=$("#openHlsUrl").val()||'';
+		if(openHlsUrl==''){
+			alert("接口地址不能为空!");
+			return;
+		}
+		$.get(openHlsUrl,function(json){
+			if(json.status==200){
+				var playUrl=baseUrl+json.data;
+				$("#playUrlText").text(playUrl);
+				$("#hlsUrl").val(playUrl);
+			}else{
+				alert("打开流转换失败:"+json.message);
+			}
+		});
+	}
+	function playHls(){
+		var url=$("#hlsUrl").val()||'';
+		if(url==''){
+			alert("请输入hls流播放地址!");
+			return;
+		}
+		var video = document.getElementById('video');
+		var hls = new Hls();
+		hls.loadSource(url);
+		hls.attachMedia(video);
+		hls.on(Hls.Events.MANIFEST_PARSED, function() {
+			video.play();
+		});
+	}
+	function keepActive(){
+		var key=$("#key").val()||"";
+		var index=0;
+		setInterval(function(){
+			var url=baseUrl+"/live/ping/"+key;
+			$.get(url,function(text){
+				$("#keepMsg").text("第"+(index++)+"次保持会话:"+text);
+			});
+		},5*1000);
+	}
+</script>
+</body>
+</html>
