@@ -37,11 +37,11 @@ public class StreamServerConfig {
     /**
      * 最大分片数
      */
-    private int hlsWrap=10;
+    private int hlsWrap=20;
     /**
      * 播放列表数
      */
-    private int hlsListSize=0;
+    private int hlsListSize=10;
 
     /**
      * 系统启动时，先把hlsStoreDir里面的文件清除掉
