@@ -15,11 +15,13 @@
 #### 三. 将视频流转为FLV并播放
 
 1.  调用 http://{server}:{port}/url/encode 接口将直播地址编码处理为key
-3.  使用flv.js播放 http://{server}:{port}/live/{key}.flv
+2.  使用flv.js播放 http://{server}:{port}/live/{key}.flv
 3.  定时访问 http://{server}:{port}/live/ping/{key} 保持转换任务运行
 
 启动后访问:  
 http://{server}:{port}/static/rtmp.html  可查看rtsp转rtmp示例
+
+
 http://{server}:{port}/static/hls.html   可查看rtsp转hls示例
 
 
