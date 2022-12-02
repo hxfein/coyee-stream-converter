@@ -39,7 +39,7 @@
     <p id="keepMsg"></p>
 </div>
 <script type="text/javascript">
-    var baseUrl = "http://localhost:8081";
+    var baseUrl = window.location.href.split("/static/")[0];
 
     function createKey() {
         var sourceUrl = $("#sourceUrl").val() || '';
@@ -47,7 +47,7 @@
             alert("源地址不能为空!");
             return;
         }
-        var url = "/url/encode";
+        var url = baseUrl+"/url/encode";
         $.post(url, {url: sourceUrl}, function (json) {
             if (json.status == 200) {
                 var key = json.data;

@@ -3,6 +3,7 @@ package com.coyee.stream.converter;
 import com.alibaba.fastjson.util.IOUtils;
 import com.coyee.stream.config.StreamServerConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
 import org.bytedeco.ffmpeg.avformat.AVFormatContext;
@@ -52,6 +53,10 @@ public class HlsConverter extends Thread implements Converter {
     private String url;
 
     private String key;
+    /**
+     * 后续请求无须等待
+     */
+    private boolean noWait=false;
 
 
     public HlsConverter(StreamServerConfig config, String url, String key) {
@@ -155,13 +160,18 @@ public class HlsConverter extends Thread implements Converter {
      */
     public File getM3u8File() {
         String hlsStoreDir = streamServerConfig.getHlsStoreDir();
-        String hlsUrl = FilenameUtils.separatorsToSystem(hlsStoreDir + File.separator + key + File.separator + "play.m3u8");
+        String shortKey=this.getShortKey();
+        String hlsUrl = FilenameUtils.separatorsToSystem(hlsStoreDir + File.separator + shortKey + File.separator + "play.m3u8");
         File hlsFile = new File(hlsUrl);
         File hlsParentFile = hlsFile.getParentFile();
         if (hlsParentFile.exists() == false) {
             hlsParentFile.mkdirs();
         }
         return hlsFile;
+    }
+
+    private String getShortKey(){
+        return DigestUtils.md5Hex(this.key);
     }
 
     /**
@@ -184,10 +194,14 @@ public class HlsConverter extends Thread implements Converter {
 
 
     public String getPlayUrl() throws InterruptedException {
-        lock.lock();
-        condition.await(10, TimeUnit.SECONDS);
-        lock.unlock();
-        return String.format("/live/%s/play.m3u8", key);
+        if(this.noWait==false) {//m3u8文件已存在就直接返回，不用等待新的ts文件解析完成
+            lock.lock();
+            condition.await(10, TimeUnit.SECONDS);
+            lock.unlock();
+        }
+        this.noWait=true;
+        String shortKey=this.getShortKey();
+        return String.format("/live/%s/play.m3u8", shortKey);
     }
 
 }

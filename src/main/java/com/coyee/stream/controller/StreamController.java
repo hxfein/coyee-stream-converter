@@ -8,6 +8,7 @@ import com.coyee.stream.config.StreamServerConfig;
 import com.coyee.stream.result.JsonResult;
 import com.coyee.stream.service.IStreamService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -153,14 +154,16 @@ public class StreamController {
             inputStream = new FileInputStream(tsFile);
             IOUtils.copy(inputStream, output);
             return null;
-        } catch (Exception er) {
+        } catch(ClientAbortException er){
+            log.debug("客户端中断:"+er.getMessage());
+        }catch (Exception er) {
             log.error("获取ts出错", er);
-            return null;
         } finally {
             if (inputStream != null) {
                 IOUtils.closeQuietly(inputStream);
             }
         }
+        return null;
     }
 
     /**

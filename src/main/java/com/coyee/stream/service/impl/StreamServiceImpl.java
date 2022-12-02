@@ -50,16 +50,20 @@ public class StreamServiceImpl implements IStreamService {
 		//如果是hls协议，开启转换，转换成功以后返回播放地址给客户端
 		//如果是flv协议，开启转换，并保持与客户端的链接，不断的输出视频流给客户端
 		if(StringUtils.equals(format,"hls")){
+			HlsConverter hlsConverter=null;
 			if (hlsConverters.containsKey(key)==false) {
-				HlsConverter hlsConverter=new HlsConverter(streamServerConfig,url,key);
+				hlsConverter=new HlsConverter(streamServerConfig,url,key);
 				hlsConverter.start();
 				hlsConverters.put(key,hlsConverter);
-				try {
-					String playUrl = hlsConverter.getPlayUrl();
-					return playUrl;
-				}catch(InterruptedException er){
-					throw new RuntimeException("获取播放地址失败！");
-				}
+			}else{
+				hlsConverter=(HlsConverter)hlsConverters.get(key);
+				log.info("流{}的转换任务已存在，可以复用。", url);
+			}
+			try {
+				String playUrl = hlsConverter.getPlayUrl();
+				return playUrl;
+			}catch(InterruptedException er){
+				throw new RuntimeException("获取播放地址失败！");
 			}
 		}else {
 			AsyncContext async = request.startAsync();
