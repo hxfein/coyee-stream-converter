@@ -7,8 +7,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.Resource;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author hxfein
@@ -42,6 +44,10 @@ public class StreamServerConfig {
      * 播放列表数
      */
     private int hlsListSize=10;
+    /**
+     * 没有观众时流的关闭时间,-1为不关闭
+     */
+    private long expireMills=1000*60*5;
 
     /**
      * 系统启动时，先把hlsStoreDir里面的文件清除掉
@@ -49,6 +55,9 @@ public class StreamServerConfig {
     @PostConstruct
     public void onStreamServerStart() throws IOException {
         File dir=new File(hlsStoreDir);
+        if(dir.exists()==false){
+            dir.mkdir();
+        }
         log.info("准备清除hls目录的残留文件");
         File[] children=dir.listFiles();
         for(File child:children){

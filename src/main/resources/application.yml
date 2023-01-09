@@ -26,4 +26,5 @@ streamserver:
   hlsStoreDir: /home/hls
   hlsTime: 5
   hlsWrap: 10
-  hlsListSize: 0
+  hlsListSize: 8
+  expireMills: -1

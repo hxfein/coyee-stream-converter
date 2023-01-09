@@ -1,9 +1,11 @@
 package com.coyee.stream.service.impl;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.*;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import javax.servlet.AsyncContext;
 import javax.servlet.http.HttpServletRequest;
@@ -15,6 +17,7 @@ import com.coyee.stream.converter.Converter;
 import com.coyee.stream.converter.FlvConverter;
 import com.coyee.stream.service.IStreamService;
 import com.coyee.stream.util.Des;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -121,6 +124,11 @@ public class StreamServiceImpl implements IStreamService {
 	@Scheduled(fixedDelay = 1*60*1000)
 	@Override
 	public void manageConverters() {
+		long expireMills=streamServerConfig.getExpireMills();
+		if(expireMills==-1){
+			log.info("因过期时间设为永久，管理任务没有运行:{}",new Date());
+			return;
+		}
 		log.info("管理任务开始运行:{}",new Date());
 		activeStreamMap.forEach((key,lastAccessTime)->{
 			if(lastAccessTime==null){
@@ -129,7 +137,7 @@ public class StreamServiceImpl implements IStreamService {
 			long accessTime=lastAccessTime.getTime();
 			long currentTime=System.currentTimeMillis();
 			long diff=currentTime-accessTime;
-			if(diff/(60*1000)>5){//上次访问时间大于5分钟
+			if(expireMills>=diff){
 				Converter flvConverter=flvConverters.get(key);
 				if(flvConverter!=null){
 					flvConverter.softClose();
@@ -145,5 +153,28 @@ public class StreamServiceImpl implements IStreamService {
 				activeStreamMap.remove(key);
 			}
 		});
+	}
+
+	/**
+	 * 打开默认需要打开的流
+	 */
+	@PostConstruct
+	public void openDefaultStreams() throws IOException{
+		File defaultOpenListFile=new File("convertToHlsList.default");
+		if(defaultOpenListFile.exists()){
+			log.info("已找到默认hls配置文件:{}，准备开启",defaultOpenListFile.getAbsolutePath());
+			List<String> hlsUrlList= FileUtils.readLines(defaultOpenListFile,"utf-8");
+			StreamServiceImpl that=this;
+			hlsUrlList.stream().forEach((url->{
+				Thread thread= new Thread(() -> {
+					log.info("准备开启{}的转流",url);
+					that.open(url,"hls",null,null);
+					log.info("{}的转流开启成功!!",url);
+				});
+				thread.start();
+			}));
+		}else {
+			log.info("未找到默认hls配置文件:{}",defaultOpenListFile.getAbsolutePath());
+		}
 	}
 }
