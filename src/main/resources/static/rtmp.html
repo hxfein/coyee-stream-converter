@@ -47,7 +47,7 @@
             alert("源地址不能为空!");
             return;
         }
-        var url = baseUrl+"/url/encode";
+        var url = baseUrl + "/url/encode";
         $.post(url, {url: sourceUrl}, function (json) {
             if (json.status == 200) {
                 var key = json.data;
@@ -63,7 +63,6 @@
     }
 
 
-
     function playRtmp() {
         var url = $("#rtmpUrl").val() || '';
         if (url == '') {
@@ -74,7 +73,7 @@
             var videoElement = document.getElementById('rtmpPlayer');
             var flvPlayer = flvjs.createPlayer({
                 type: 'flv',
-                url:url
+                url: url
             });
             flvPlayer.attachMediaElement(videoElement);
             flvPlayer.load();

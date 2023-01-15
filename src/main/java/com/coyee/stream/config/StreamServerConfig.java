@@ -35,38 +35,38 @@ public class StreamServerConfig {
     /**
      * 单个分片播放时间
      */
-    private int hlsTime=5;
+    private int hlsTime = 5;
     /**
      * 最大分片数
      */
-    private int hlsWrap=20;
+    private int hlsWrap = 20;
     /**
      * 播放列表数
      */
-    private int hlsListSize=10;
+    private int hlsListSize = 10;
     /**
      * 没有观众时流的关闭时间,-1为不关闭
      */
-    private long expireMills=1000*60*5;
+    private long expireMills = 1000 * 60 * 5;
 
     /**
      * 系统启动时，先把hlsStoreDir里面的文件清除掉
      */
     @PostConstruct
     public void onStreamServerStart() throws IOException {
-        File dir=new File(hlsStoreDir);
-        if(dir.exists()==false){
+        File dir = new File(hlsStoreDir);
+        if (dir.exists() == false) {
             dir.mkdir();
         }
         log.info("准备清除hls目录的残留文件");
-        File[] children=dir.listFiles();
-        for(File child:children){
-            if(child.isDirectory()) {
+        File[] children = dir.listFiles();
+        for (File child : children) {
+            if (child.isDirectory()) {
                 FileUtils.deleteDirectory(child);
-                log.info("目录 已被清除:{}",child.getAbsolutePath());
-            }else{
+                log.info("目录 已被清除:{}", child.getAbsolutePath());
+            } else {
                 FileUtils.deleteQuietly(child);
-                log.info("文件 已被清除:{}",child.getAbsolutePath());
+                log.info("文件 已被清除:{}", child.getAbsolutePath());
             }
         }
     }

@@ -13,17 +13,17 @@ import javax.servlet.AsyncContext;
  */
 public interface Converter {
 
-	/**
-	 * 添加一个流输出
-	 *
-	 * @param entity
-	 */
-	void addOutputStreamEntity(String key, AsyncContext entity) throws IOException;
+    /**
+     * 添加一个流输出
+     *
+     * @param entity
+     */
+    void addOutputStreamEntity(String key, AsyncContext entity) throws IOException;
 
-	/**
-	 * 要求关闭转换器
-	 */
-	void softClose();
+    /**
+     * 要求关闭转换器
+     */
+    void softClose();
 
 
 }

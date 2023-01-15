@@ -70,7 +70,7 @@ public class FlvConverter extends Thread implements Converter {
             if (avcodec.AV_CODEC_ID_H264 == grabber.getVideoCodec()
                     && (grabber.getAudioChannels() == 0 || avcodec.AV_CODEC_ID_AAC == grabber.getAudioCodec())) {
                 simpleTransFlv();
-            }else{
+            } else {
                 transFlv();
             }
         } catch (Exception e) {
@@ -250,6 +250,6 @@ public class FlvConverter extends Thread implements Converter {
 
     @Override
     public void softClose() {
-        this.running =false;
+        this.running = false;
     }
 }

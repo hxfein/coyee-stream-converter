@@ -38,7 +38,7 @@ public class StreamController {
     /**
      * 开启hls流的转换,返回播放地址
      *
-     * @param key  加密后的流地址
+     * @param key      加密后的流地址
      * @param response
      * @param request
      */
@@ -155,9 +155,9 @@ public class StreamController {
             inputStream = new FileInputStream(tsFile);
             IOUtils.copy(inputStream, output);
             return null;
-        } catch(ClientAbortException er){
-            log.debug("客户端中断:"+er.getMessage());
-        }catch (Exception er) {
+        } catch (ClientAbortException er) {
+            log.debug("客户端中断:" + er.getMessage());
+        } catch (Exception er) {
             log.error("获取ts出错", er);
         } finally {
             if (inputStream != null) {
@@ -170,7 +170,7 @@ public class StreamController {
     /**
      * 打开一个flv流
      *
-     * @param key 加密后的流地址
+     * @param key      加密后的流地址
      * @param response
      * @param request
      */

@@ -16,14 +16,14 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 @Configuration
 @EnableScheduling
 public class SchedulerConfig {
-	@Bean
-	public TaskScheduler taskScheduler() {
-		ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-		// 线程池大小
-		scheduler.setPoolSize(3);
-		// 线程名字前缀
-		scheduler.setThreadNamePrefix("task-thread-");
-		return scheduler;
-	}
+    @Bean
+    public TaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        // 线程池大小
+        scheduler.setPoolSize(3);
+        // 线程名字前缀
+        scheduler.setThreadNamePrefix("task-thread-");
+        return scheduler;
+    }
 
 }

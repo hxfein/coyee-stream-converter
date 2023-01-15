@@ -57,7 +57,7 @@ public class HlsConverter extends Thread implements Converter {
     /**
      * 后续请求无须等待
      */
-    private boolean noWait=false;
+    private boolean noWait = false;
 
 
     public HlsConverter(StreamServerConfig config, String url, String key) {
@@ -104,13 +104,13 @@ public class HlsConverter extends Thread implements Converter {
             // 解码器格式
             recorder.setFormat("hls");
             // 单个切片时长,单位是s，默认为5s
-            int hlsTime=streamServerConfig.getHlsTime();
+            int hlsTime = streamServerConfig.getHlsTime();
             recorder.setOption("hls_time", String.valueOf(hlsTime));
             // HLS播放的列表长度，0标识不做限制
-            int hlsListSize=streamServerConfig.getHlsListSize();
+            int hlsListSize = streamServerConfig.getHlsListSize();
             recorder.setOption("hls_list_size", String.valueOf(hlsListSize));
             // TS文件数量限制
-            int hlsWrap=streamServerConfig.getHlsWrap();
+            int hlsWrap = streamServerConfig.getHlsWrap();
             recorder.setOption("hls_wrap", String.valueOf(hlsWrap));
             // 设置切片的ts文件序号起始值，默认从0开始，可以通过此项更改
             recorder.setOption("start_number", "100");
@@ -161,7 +161,7 @@ public class HlsConverter extends Thread implements Converter {
      */
     public File getM3u8File() {
         String hlsStoreDir = streamServerConfig.getHlsStoreDir();
-        String shortKey=this.getShortKey();
+        String shortKey = this.getShortKey();
         String hlsUrl = FilenameUtils.separatorsToSystem(hlsStoreDir + File.separator + shortKey + File.separator + "play.m3u8");
         File hlsFile = new File(hlsUrl);
         File hlsParentFile = hlsFile.getParentFile();
@@ -171,7 +171,7 @@ public class HlsConverter extends Thread implements Converter {
         return hlsFile;
     }
 
-    private String getShortKey(){
+    private String getShortKey() {
         return DigestUtils.md5Hex(this.key);
     }
 
@@ -195,13 +195,13 @@ public class HlsConverter extends Thread implements Converter {
 
 
     public String getPlayUrl() throws InterruptedException {
-        if(this.noWait==false) {//m3u8文件已存在就直接返回，不用等待新的ts文件解析完成
+        if (this.noWait == false) {//m3u8文件已存在就直接返回，不用等待新的ts文件解析完成
             lock.lock();
             condition.await(10, TimeUnit.SECONDS);
             lock.unlock();
         }
-        this.noWait=true;
-        String shortKey=this.getShortKey();
+        this.noWait = true;
+        String shortKey = this.getShortKey();
         return String.format("/live/%s/play.m3u8", shortKey);
     }
 
