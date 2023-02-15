@@ -1,9 +1,11 @@
-package com.coyee.stream.result;
+package com.coyee.stream.bean;
 
 import java.io.Serializable;
 import java.util.HashMap;
 
 import com.alibaba.fastjson.JSONObject;
+
+import javax.servlet.http.HttpServletResponse;
 
 /**
  * @author hxfein
@@ -145,6 +147,20 @@ public class JsonResult extends HashMap<String, Object> implements Serializable 
 
     public JSONObject toJSONObject() {
         return JSONObject.parseObject(toString());
+    }
+
+    /**
+     * 发送错误
+     * @param response
+     * @param code
+     * @param msg
+     */
+    public static void sendError(HttpServletResponse response, int code, String msg){
+        try {
+            response.sendError(code, msg);
+        }catch(Exception er){
+            //ignore
+        }
     }
 
 }

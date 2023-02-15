@@ -1,6 +1,6 @@
 package com.coyee.stream.controller.advice;
 
-import com.coyee.stream.result.JsonResult;
+import com.coyee.stream.bean.JsonResult;
 import org.springframework.boot.context.properties.bind.validation.BindValidationException;
 import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.http.converter.HttpMessageNotReadableException;

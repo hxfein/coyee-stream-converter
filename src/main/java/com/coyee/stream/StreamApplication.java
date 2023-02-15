@@ -1,13 +1,18 @@
 package com.coyee.stream;
 
+import com.coyee.stream.config.StreamServerConfig;
+import com.coyee.stream.converter.ConverterFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.context.annotation.Bean;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
+
+import javax.annotation.Resource;
+import java.io.File;
+import java.util.List;
 
 /**
  * @author hxfein
@@ -16,36 +21,42 @@ import org.springframework.web.filter.CorsFilter;
  * @date 2022/5/12 14:32
  * @version：1.0
  */
+@Slf4j
 @EnableCaching // 开启缓存
 @EnableConfigurationProperties
 @SpringBootApplication(scanBasePackages = "com.coyee.stream")
-public class StreamApplication {
+public class StreamApplication implements ApplicationRunner {
+    @Resource
+    private StreamServerConfig streamServerConfig;
 
     public static void main(String[] args) {
         SpringApplication.run(StreamApplication.class, args);
     }
 
+    @Override
+    public void run(ApplicationArguments args) {
+        ConverterFactory.init(streamServerConfig);
+        registerFromFile(args, "hlsSourceFile", "hls");
+        registerFromFile(args, "flvSourceFile", "flv");
+    }
+
     /**
-     * 允许跨域访问
-     *
-     * @return
+     * 从文件中初始化转换器
+     * @param args
+     * @param variableName
+     * @param format
      */
-    @Bean
-    public CorsFilter corsFilter() {
-        final UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        final CorsConfiguration config = new CorsConfiguration();
-        config.setAllowCredentials(true); // 允许cookies跨域
-        config.addAllowedOrigin("*");// #允许向该服务器提交请求的URI，*表示全部允许，在SpringMVC中，如果设成*，会自动转成当前请求头中的Origin
-        config.addAllowedHeader("*");// #允许访问的头信息,*表示全部
-        config.setMaxAge(18000L);// 预检请求的缓存时间（秒），即在这个时间段里，对于相同的跨域请求不会再预检了
-        config.addAllowedMethod("OPTIONS");// 允许提交请求的方法，*表示全部允许
-        config.addAllowedMethod("HEAD");
-        config.addAllowedMethod("GET");// 允许Get的请求方法
-        config.addAllowedMethod("PUT");
-        config.addAllowedMethod("POST");
-        config.addAllowedMethod("DELETE");
-        config.addAllowedMethod("PATCH");
-        source.registerCorsConfiguration("/**", config);
-        return new CorsFilter(source);
+    private void registerFromFile(ApplicationArguments args, String variableName, String format) {
+        List<String> sourceFileList = args.getOptionValues(variableName);
+        if (sourceFileList == null || sourceFileList.isEmpty()) {
+            return;
+        }
+        String filename = sourceFileList.get(0);
+        File sourceFile = new File(filename);
+        if (sourceFile.exists()) {
+            ConverterFactory.registerFromFile(sourceFile, format);
+        }else{
+            log.error("批量初始化的文件{}不存在!",sourceFileList);
+        }
     }
 }

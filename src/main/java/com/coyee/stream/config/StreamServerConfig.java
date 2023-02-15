@@ -1,5 +1,6 @@
 package com.coyee.stream.config;
 
+import com.coyee.stream.converter.ConverterFactory;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
@@ -48,26 +49,9 @@ public class StreamServerConfig {
      * 没有观众时流的关闭时间,-1为不关闭
      */
     private long expireMills = 1000 * 60 * 5;
-
     /**
-     * 系统启动时，先把hlsStoreDir里面的文件清除掉
+     * 当m3u8文件超过时间没有更新时，则认为已过期
      */
-    @PostConstruct
-    public void onStreamServerStart() throws IOException {
-        File dir = new File(hlsStoreDir);
-        if (dir.exists() == false) {
-            dir.mkdir();
-        }
-        log.info("准备清除hls目录的残留文件");
-        File[] children = dir.listFiles();
-        for (File child : children) {
-            if (child.isDirectory()) {
-                FileUtils.deleteDirectory(child);
-                log.info("目录 已被清除:{}", child.getAbsolutePath());
-            } else {
-                FileUtils.deleteQuietly(child);
-                log.info("文件 已被清除:{}", child.getAbsolutePath());
-            }
-        }
-    }
+    private long m3u8ExpireMills=1000*60*3;
+
 }

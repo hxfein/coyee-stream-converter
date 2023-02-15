@@ -2,10 +2,13 @@ package com.coyee.stream.converter;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
 import javax.servlet.AsyncContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
 import org.bytedeco.ffmpeg.global.avcodec;
@@ -23,8 +26,7 @@ import lombok.extern.slf4j.Slf4j;
  * @version：1.0
  */
 @Slf4j
-public class FlvConverter extends Thread implements Converter {
-    public volatile boolean running = true;
+public class FlvConverter extends Converter{
     /**
      * 读流器
      */
@@ -43,26 +45,17 @@ public class FlvConverter extends Thread implements Converter {
      */
     private ByteArrayOutputStream stream;
     /**
-     * 流地址，h264,aac
-     */
-    private String url;
-    /**
      * 流输出
      */
-    private List<AsyncContext> outEntitys;
+    private List<AsyncContext> outEntitys=new ArrayList<>();
 
-
-    public FlvConverter(String url, List<AsyncContext> outEntitys) {
-        this.url = url;
-        this.outEntitys = outEntitys;
-    }
 
     @Override
     public void run() {
         try {
-            log.info("开始转换FLV任务:{}。", url);
-            grabber = new FFmpegFrameGrabber(url);
-            if ("rtsp".equals(url.substring(0, 4))) {
+            log.info("开始转换FLV任务:{}。", endpoint);
+            grabber = new FFmpegFrameGrabber(endpoint);
+            if ("rtsp".equals(endpoint.substring(0, 4))) {
                 grabber.setOption("rtsp_transport", "tcp");
                 grabber.setOption("stimeout", "5000000");
             }
@@ -78,12 +71,12 @@ public class FlvConverter extends Thread implements Converter {
         } finally {
             closeConverter();
             completeResponse();
-            log.info("FLV转换任务退出:{}", url);
+            log.info("FLV转换任务退出:{}", endpoint);
         }
     }
 
     private void transFlv() throws FrameRecorder.Exception, FrameGrabber.Exception, InterruptedException {
-        log.info("FLV(complex)转换任务启动,可以立即播放：{}。", url);
+        log.info("FLV(complex)转换任务启动,可以立即播放：{}。", endpoint);
         grabber.setFrameRate(25);
         if (grabber.getImageWidth() > 1920) {
             grabber.setImageWidth(1920);
@@ -147,7 +140,7 @@ public class FlvConverter extends Thread implements Converter {
     private void simpleTransFlv() throws FrameRecorder.Exception, FrameGrabber.Exception, InterruptedException {
         // 来源视频H264格式,音频AAC格式
         // 无须转码，更低的资源消耗，更低的延迟
-        log.info("FLV(simple)转换任务启动,可以立即播放：{}。", url);
+        log.info("FLV(simple)转换任务启动,可以立即播放：{}。", endpoint);
         stream = new ByteArrayOutputStream();
         recorder = new FFmpegFrameRecorder(stream, grabber.getImageWidth(), grabber.getImageHeight(),
                 grabber.getAudioChannels());
@@ -215,6 +208,31 @@ public class FlvConverter extends Thread implements Converter {
                 it.remove();
             }
         }
+        if(outEntitys.isEmpty()==false){
+            callback.notify(Event.Active,null);
+        }
+    }
+
+    public void play(HttpServletRequest request,HttpServletResponse response){
+        AsyncContext async = request.startAsync();
+        async.setTimeout(0);
+        if(this.isAlive()==false){
+            this.start();
+        }
+        try {
+            this.addOutputStreamEntity(async);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        response.setContentType("video/x-flv");
+        response.setHeader("Connection", "keep-alive");
+        response.setStatus(HttpServletResponse.SC_OK);
+        try {
+            response.flushBuffer();
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+        }
     }
 
     /**
@@ -237,8 +255,7 @@ public class FlvConverter extends Thread implements Converter {
         }
     }
 
-    @Override
-    public void addOutputStreamEntity(String key, AsyncContext entity) throws IOException {
+    public void addOutputStreamEntity(AsyncContext entity) throws IOException {
         if (headers == null) {
             outEntitys.add(entity);
         } else {

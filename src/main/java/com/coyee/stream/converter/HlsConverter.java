@@ -1,9 +1,8 @@
 package com.coyee.stream.converter;
 
 import com.alibaba.fastjson.util.IOUtils;
-import com.coyee.stream.config.StreamServerConfig;
+import com.coyee.stream.exception.ServiceException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
@@ -13,13 +12,8 @@ import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.FFmpegFrameRecorder;
 
-import javax.servlet.AsyncContext;
 import java.io.File;
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.ArrayBlockingQueue;
 
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_unref;
 
@@ -31,10 +25,7 @@ import static org.bytedeco.ffmpeg.global.avcodec.av_packet_unref;
  * @version：1.0
  */
 @Slf4j
-public class HlsConverter extends Thread implements Converter {
-    public volatile boolean running = true;
-    private Lock lock = new ReentrantLock();
-    private Condition condition = lock.newCondition();
+public class HlsConverter extends Converter {
     /**
      * 读流器
      */
@@ -44,35 +35,21 @@ public class HlsConverter extends Thread implements Converter {
      */
     private FFmpegFrameRecorder recorder;
     /**
-     * 流服务配置
+     * 初始化时转换的秒数
      */
-    private StreamServerConfig streamServerConfig;
-
+    private static final int MAX_WAIT_COUNT = 10;
     /**
-     * 流地址，h264,aac
+     * 等待队列
      */
-    private String url;
-
-    private String key;
-    /**
-     * 后续请求无须等待
-     */
-    private boolean noWait = false;
-
-
-    public HlsConverter(StreamServerConfig config, String url, String key) {
-        this.streamServerConfig = config;
-        this.url = url;
-        this.key = key;
-    }
+    private ArrayBlockingQueue transferWaitQueue = new ArrayBlockingQueue(MAX_WAIT_COUNT);
 
     @Override
     public void run() {
         try {
-            lock.lock();
-            log.info("开始转换HLS任务:{}。", url);
-            grabber = new FFmpegFrameGrabber(url);
-            if ("rtsp".equals(url.substring(0, 4))) {
+            this.running = true;
+            log.info("开始转换HLS任务:{}。", endpoint);
+            grabber = new FFmpegFrameGrabber(endpoint);
+            if ("rtsp".equals(endpoint.substring(0, 4))) {
                 grabber.setOption("rtsp_transport", "tcp");
                 grabber.setOption("stimeout", "5000000");
             }
@@ -81,14 +58,14 @@ public class HlsConverter extends Thread implements Converter {
             int bitrate = grabber.getVideoBitrate();// 比特率
             double framerate = 25.0;// 帧率
             int timebase;// 时钟基
-            int err_index = 0, no_pkt_index = 0;//错误帧数、没有包的帧数
+            long err_index = 0, no_pkt_index = 0, total_index = 0;//错误帧数、没有包的帧数、总帧数
             long dts = 0, pts = 0;// pkt的dts、pts时间戳
             // 异常的framerate，强制使用25帧
             if (grabber.getFrameRate() > 0 && grabber.getFrameRate() < 100) {
                 framerate = grabber.getFrameRate();
             }
 
-            File m3u8File = this.getM3u8File();
+            File m3u8File = this.getIndexFile();
             recorder = new FFmpegFrameRecorder(m3u8File, grabber.getImageWidth(), grabber.getImageHeight(),
                     grabber.getAudioChannels());
             // 设置比特率
@@ -114,10 +91,11 @@ public class HlsConverter extends Thread implements Converter {
             recorder.setOption("hls_wrap", String.valueOf(hlsWrap));
             // 设置切片的ts文件序号起始值，默认从0开始，可以通过此项更改
             recorder.setOption("start_number", "100");
+            // 每个TS文件的帧数(额外加一帧容错)
+            int frame_per_ts = (int) (framerate + 1) * (hlsTime + 1);
             /////开始转码
             AVFormatContext fc = grabber.getFormatContext();
             recorder.start(fc);
-            boolean canPlay = false;
             while (running) {
                 AVPacket pkt = grabber.grabPacket();
                 if (pkt == null || pkt.size() <= 0 || pkt.data() == null) {
@@ -133,24 +111,27 @@ public class HlsConverter extends Thread implements Converter {
                 // 矫正dts，pts
                 pkt.pts(pts);
                 pkt.dts(dts);
-                err_index += (recorder.recordPacket(pkt) ? 0 : 1);
+                boolean recordOk = recorder.recordPacket(pkt);
+                err_index += recordOk ? 0 : 1;
+                total_index += recordOk ? 1 : 0;
                 // pts,dts累加
                 timebase = grabber.getFormatContext().streams(pkt.stream_index()).time_base().den();
-
                 pts += (timebase / (int) framerate);
                 dts += (timebase / (int) framerate);
-                if (canPlay == false && m3u8File.exists()) {
-                    condition.signal();
-                    lock.unlock();
-                    canPlay = true;
-                    log.info("HLS转换的文件可以播放了：{}。", url);
+                if (total_index % frame_per_ts == 0) {
+                    int current_size = transferWaitQueue.size();
+                    if (current_size > MAX_WAIT_COUNT) {
+                        transferWaitQueue.clear();
+                    }
+                    transferWaitQueue.put(total_index);
                 }
+
             }
+            log.info("{}转换完成,总帧数为{},错误帧数为{},空帧数为{}。", endpoint, total_index, err_index, no_pkt_index);
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         } finally {
             closeConverter();
-            log.info("HLS转换{}的任务结束。", url);
         }
     }
 
@@ -159,10 +140,9 @@ public class HlsConverter extends Thread implements Converter {
      *
      * @return
      */
-    public File getM3u8File() {
+    public File getIndexFile() {
         String hlsStoreDir = streamServerConfig.getHlsStoreDir();
-        String shortKey = this.getShortKey();
-        String hlsUrl = FilenameUtils.separatorsToSystem(hlsStoreDir + File.separator + shortKey + File.separator + "play.m3u8");
+        String hlsUrl = FilenameUtils.separatorsToSystem(hlsStoreDir + File.separator + key + File.separator + "play.m3u8");
         File hlsFile = new File(hlsUrl);
         File hlsParentFile = hlsFile.getParentFile();
         if (hlsParentFile.exists() == false) {
@@ -171,8 +151,21 @@ public class HlsConverter extends Thread implements Converter {
         return hlsFile;
     }
 
-    private String getShortKey() {
-        return DigestUtils.md5Hex(this.key);
+    /**
+     * 获取视频片段文件
+     *
+     * @param filename
+     * @return
+     */
+    public File getTsFile(String filename) {
+        String hlsStoreDir = streamServerConfig.getHlsStoreDir();
+        String tsPath = FilenameUtils.separatorsToSystem(hlsStoreDir + File.separator + key + File.separator + filename + ".ts");
+        File tsFile = new File(tsPath);
+        File tsParentFile = tsFile.getParentFile();
+        if (tsParentFile.exists() == false) {
+            tsParentFile.mkdirs();
+        }
+        return tsFile;
     }
 
     /**
@@ -183,26 +176,34 @@ public class HlsConverter extends Thread implements Converter {
         IOUtils.close(recorder);
     }
 
-    @Override
-    public void addOutputStreamEntity(String key, AsyncContext entity) throws IOException {
-
-    }
 
     @Override
     public void softClose() {
         this.running = false;
     }
 
-
-    public String getPlayUrl() throws InterruptedException {
-        if (this.noWait == false) {//m3u8文件已存在就直接返回，不用等待新的ts文件解析完成
-            lock.lock();
-            condition.await(10, TimeUnit.SECONDS);
-            lock.unlock();
+    /***
+     * 启动转换线程并等待转换为可播放状态
+     */
+    public void startAndWait() {
+        try {
+            long begMills=System.currentTimeMillis();
+            this.start();
+            File indexFile = this.getIndexFile();
+            long currentTimeMillis = System.currentTimeMillis();
+            long lastModified = indexFile.lastModified();
+            long m3u8ExpireMills = streamServerConfig.getM3u8ExpireMills();
+            if (Math.abs(currentTimeMillis - lastModified) > m3u8ExpireMills) {
+                FileUtils.deleteDirectory(indexFile.getParentFile());
+                log.info("索引文件已过期准备删除:{}", indexFile.getParentFile());
+            }
+            while (indexFile.exists() == false) {
+                transferWaitQueue.take();
+            }
+            long endMills=System.currentTimeMillis();
+            log.info("转换流【{}】共耗时 {}",endpoint,(endMills-begMills));
+        } catch (Exception er) {
+            throw new ServiceException("等待流转换失败", er);
         }
-        this.noWait = true;
-        String shortKey = this.getShortKey();
-        return String.format("/live/%s/play.m3u8", shortKey);
     }
-
 }

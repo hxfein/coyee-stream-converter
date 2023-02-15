@@ -15,47 +15,35 @@
     </video>
 </div>
 <div>
-    <h3>1.地址编码</h3>
+    <h3>1.地址注册</h3>
     <p>
         <label>源地址:</label>
         <input type="text" size="120" value="rtsp://wowzaec2demo.streamlock.net/vod/mp4" id="sourceUrl"/>
-        <input type="button" onclick="createKey()" value="编码"/>
+        <input type="button" onclick="register()" value="注册"/>
     </p>
     <p><label>编码:</label><label id="keyText"></label></p>
-    <p><label>打开流地址:</label><label id="rtmpUrlText"></label></p>
 </div>
 <div>
     <h3>2.播放RTMP流</h3>
     <input type="text" size="120" value="" id="rtmpUrl"/>
     <input type="button" onclick="playRtmp()" value="播放"/>
 </div>
-
-<div>
-    <h3>3.保持会话</h3>
-    <p>
-        <input type="text" size="120" value="" id="key"/>
-        <input type="button" onclick="keepActive()" value="保持"/>
-    </p>
-    <p id="keepMsg"></p>
-</div>
 <script type="text/javascript">
     var baseUrl = window.location.href.split("/static/")[0];
 
-    function createKey() {
+    function register() {
         var sourceUrl = $("#sourceUrl").val() || '';
         if (sourceUrl == '') {
             alert("源地址不能为空!");
             return;
         }
-        var url = baseUrl + "/url/encode";
-        $.post(url, {url: sourceUrl}, function (json) {
+        var url = baseUrl + "/converter/register";
+        $.post(url, {url: sourceUrl,format:"flv"}, function (json) {
             if (json.status == 200) {
                 var key = json.data;
                 $("#keyText").text(key);
                 $("#key").val(key);
-                var rtmpUrl = baseUrl + "/live/" + key + ".flv";
-                $("#rtmpUrlText").text(rtmpUrl);
-                $("#rtmpUrl").val(rtmpUrl);
+                $("#rtmpUrl").val(baseUrl+"/live/"+key+".flv");
             } else {
                 alert("错误:" + json.message);
             }
@@ -79,17 +67,6 @@
             flvPlayer.load();
             flvPlayer.play();
         }
-    }
-
-    function keepActive() {
-        var key = $("#key").val() || "";
-        var index = 0;
-        setInterval(function () {
-            var url = baseUrl + "/live/ping/" + key;
-            $.get(url, function (text) {
-                $("#keepMsg").text("第" + (index++) + "次保持会话:" + text);
-            });
-        }, 5 * 1000);
     }
 </script>
 </body>
