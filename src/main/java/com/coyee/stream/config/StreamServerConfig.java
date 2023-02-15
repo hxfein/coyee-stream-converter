@@ -26,10 +26,6 @@ import java.util.List;
 @Slf4j
 public class StreamServerConfig {
     /**
-     * 加密key
-     */
-    private String desKey;
-    /**
      * 转为hls协议时m3u8、TS文件的存储目录
      */
     private String hlsStoreDir;

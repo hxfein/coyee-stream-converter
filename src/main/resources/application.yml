@@ -22,10 +22,9 @@ server:
   servlet:
     context-path: /stream
 streamserver:
-  desKey: hxfein@2
+  expireMills: -1
   hlsStoreDir: /home/hls
   hlsTime: 5
   hlsWrap: 10
   hlsListSize: 8
-  expireMills: -1
   m3u8ExpireMills: 6000

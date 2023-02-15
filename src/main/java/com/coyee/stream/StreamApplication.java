@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.annotation.EnableCaching;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.io.File;
 import java.util.List;
@@ -42,6 +43,7 @@ public class StreamApplication implements ApplicationRunner {
 
     /**
      * 从文件中初始化转换器
+     *
      * @param args
      * @param variableName
      * @param format
@@ -55,8 +57,8 @@ public class StreamApplication implements ApplicationRunner {
         File sourceFile = new File(filename);
         if (sourceFile.exists()) {
             ConverterFactory.registerFromFile(sourceFile, format);
-        }else{
-            log.error("批量初始化的文件{}不存在!",sourceFileList);
+        } else {
+            log.error("批量初始化的文件{}不存在!", sourceFileList);
         }
     }
 }
