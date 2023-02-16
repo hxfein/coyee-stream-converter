@@ -56,14 +56,25 @@ public class StreamController {
      */
     @GetMapping(value = "/live/{key}.flv")
     public void flvLive(HttpServletResponse response,
-                        HttpServletRequest request, @PathVariable(value = "key") String key) {
+                        HttpServletRequest request, @PathVariable(value = "key") String key) throws InterruptedException {
         Converter converter = ConverterFactory.get(key);
         if (converter == null || converter instanceof FlvConverter == false) {
             JsonResult.sendError(response, 500, "转换器未注册!");
             return;
         }
         FlvConverter flvConverter = (FlvConverter) converter;
-        flvConverter.play(request, response);
+        try {
+            flvConverter.play(request, response);
+        } catch (InterruptedException e) {
+            try {
+                String url = flvConverter.getEndpoint();
+                ConverterFactory.cancle(key);
+                flvConverter = ConverterFactory.registerFlv(url, key);
+                flvConverter.play(request, response);
+            } catch (InterruptedException er) {
+                log.error("流转换任务转换失败:{}",er.getMessage());
+            }
+        }
     }
 
     /**
@@ -84,11 +95,11 @@ public class StreamController {
                 JsonResult.sendError(response, 500, "转换器未注册!");
                 return;
             }
-            String url=converter.getEndpoint();
-            ConverterFactory.registerHls(url,key);//检查生成的文件，一旦过期马上重新生成，以此解决流中断导致文件不及时的问题
+            String url = converter.getEndpoint();
+            ConverterFactory.registerHls(url, key);//检查生成的文件，一旦过期马上重新生成，以此解决流中断导致文件不及时的问题
             HlsConverter hlsConverter = (HlsConverter) converter;
             File indexFile = hlsConverter.getIndexFile();
-            if(indexFile.exists()==false){
+            if (indexFile.exists() == false) {
                 JsonResult.sendError(response, 404, "没有找到文件!");
                 return;
             }

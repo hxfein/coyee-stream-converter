@@ -10,6 +10,7 @@ import javax.servlet.AsyncContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import com.coyee.stream.exception.ServiceException;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
 import org.bytedeco.ffmpeg.global.avcodec;
 import org.bytedeco.javacv.*;
@@ -213,13 +214,17 @@ public class FlvConverter extends Converter{
         }
     }
 
-    public void play(HttpServletRequest request,HttpServletResponse response){
-        AsyncContext async = request.startAsync();
-        async.setTimeout(0);
-        if(this.isAlive()==false){
+    public void play(HttpServletRequest request,HttpServletResponse response) throws InterruptedException{
+        State state=this.getState();
+        if(state==State.NEW){
             this.start();
+        }else if(state==State.TERMINATED){
+            log.info("{}的转流已停止,需要重新开启",endpoint);
+            throw new InterruptedException("转流线程已停止,需要重新开启");
         }
         try {
+            AsyncContext async = request.startAsync();
+            async.setTimeout(0);
             this.addOutputStreamEntity(async);
         } catch (IOException e) {
             log.error(e.getMessage(), e);
